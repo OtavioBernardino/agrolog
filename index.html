@@ -164,8 +164,19 @@
         <section id="relatorios" class="tab-content">
             <div class="glass-card p-6 rounded-3xl space-y-6">
                 <div class="flex justify-between items-start">
-                    <h2 class="text-purple-400 font-extrabold text-lg italic uppercase tracking-tighter">Performance</h2>
+                    <h2 class="text-purple-400 font-extrabold text-lg italic uppercase tracking-tighter">Central Analytics</h2>
                     <button onclick="window.print()" class="w-10 h-10 bg-slate-800 rounded-xl flex items-center justify-center hover:bg-purple-600 transition-all"><i class="fas fa-file-pdf"></i></button>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="bg-slate-900/50 p-4 rounded-2xl border border-slate-800">
+                        <span class="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Total Período</span>
+                        <div class="text-xl font-black text-white" id="kpi-total">0.0h</div>
+                    </div>
+                    <div class="bg-slate-900/50 p-4 rounded-2xl border border-slate-800">
+                        <span class="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Top Máquina</span>
+                        <div class="text-sm font-black text-purple-400 truncate" id="kpi-top">---</div>
+                    </div>
                 </div>
 
                 <div class="space-y-3">
@@ -174,12 +185,28 @@
                         <button id="btn-mensal" onclick="filtrarRelatorio('mensal')" class="flex-1 py-2 text-[10px] font-bold uppercase rounded-xl transition-all">Mês</button>
                         <button id="btn-anual" onclick="filtrarRelatorio('anual')" class="flex-1 py-2 text-[10px] font-bold uppercase rounded-xl transition-all">Ano</button>
                     </div>
-                    <select id="filtro-maquina-rel" onchange="atualizarPeriodoAtual()" class="w-full bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs font-bold text-slate-400 outline-none"></select>
+                    
+                    <div class="grid grid-cols-2 gap-2">
+                        <select id="filtro-maquina-rel" onchange="atualizarPeriodoAtual()" class="bg-slate-950 p-3 rounded-xl border border-slate-800 text-[10px] font-bold text-slate-400 outline-none"></select>
+                        <select id="filtro-operador-rel" onchange="atualizarPeriodoAtual()" class="bg-slate-950 p-3 rounded-xl border border-slate-800 text-[10px] font-bold text-slate-400 outline-none"></select>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="flex flex-col">
+                            <label class="text-[8px] font-bold text-slate-600 ml-2 mb-1">DE:</label>
+                            <input type="date" id="rel-data-inicio" onchange="filtrarRelatorio('custom')" class="bg-slate-950 p-2 rounded-xl border border-slate-800 text-[10px] text-white outline-none">
+                        </div>
+                        <div class="flex flex-col">
+                            <label class="text-[8px] font-bold text-slate-600 ml-2 mb-1">ATÉ:</label>
+                            <input type="date" id="rel-data-fim" onchange="filtrarRelatorio('custom')" class="bg-slate-950 p-2 rounded-xl border border-slate-800 text-[10px] text-white outline-none">
+                        </div>
+                    </div>
                 </div>
 
-                <div class="relative">
+                <div class="relative pt-4 border-t border-slate-800">
                     <canvas id="chartProd" style="max-height: 220px;"></canvas>
                 </div>
+                
                 <div id="stats-list" class="grid grid-cols-1 gap-2"></div>
             </div>
         </section>
@@ -328,26 +355,57 @@
 
         window.filtrarRelatorio = (periodo) => {
             periodoAtual = periodo;
-            ['diario', 'mensal', 'anual'].forEach(p => {
-                const btn = document.getElementById(`btn-${p}`);
-                if(p === periodo) btn.classList.add('bg-purple-600', 'text-white');
-                else btn.classList.remove('bg-purple-600', 'text-white');
-            });
+            
+            // Limpa custom dates se não for custom
+            if(periodo !== 'custom') {
+                document.getElementById('rel-data-inicio').value = '';
+                document.getElementById('rel-data-fim').value = '';
+                ['diario', 'mensal', 'anual'].forEach(p => {
+                    const btn = document.getElementById(`btn-${p}`);
+                    if(p === periodo) btn.classList.add('bg-purple-600', 'text-white');
+                    else btn.classList.remove('bg-purple-600', 'text-white');
+                });
+            } else {
+                ['diario', 'mensal', 'anual'].forEach(p => document.getElementById(`btn-${p}`).classList.remove('bg-purple-600', 'text-white'));
+            }
 
             const maquinaSel = document.getElementById('filtro-maquina-rel').value;
+            const operSel = document.getElementById('filtro-operador-rel').value;
             const stats = {}; 
             window.frota.forEach(t => { if(maquinaSel === 'todos' || maquinaSel === t.modelo) stats[t.modelo] = 0; });
 
             const agora = new Date();
+            const dInicio = document.getElementById('rel-data-inicio').value ? new Date(document.getElementById('rel-data-inicio').value) : null;
+            const dFim = document.getElementById('rel-data-fim').value ? new Date(document.getElementById('rel-data-fim').value) : null;
+            if(dFim) dFim.setHours(23,59,59);
+
+            let totalH = 0;
+            let topMaq = {nome: '---', valor: 0};
+
             window.logs.forEach(log => {
                 const [d,m,a] = log.data.split('/');
                 const logDate = new Date(a, m-1, d);
-                const matchP = (periodo==='diario' && logDate.toDateString()===agora.toDateString()) || 
-                               (periodo==='mensal' && logDate.getMonth()===agora.getMonth() && logDate.getFullYear()===agora.getFullYear()) || 
-                               (periodo==='anual');
+                
+                let matchP = false;
+                if(periodo === 'diario') matchP = logDate.toDateString() === agora.toDateString();
+                else if(periodo === 'mensal') matchP = logDate.getMonth() === agora.getMonth() && logDate.getFullYear() === agora.getFullYear();
+                else if(periodo === 'anual') matchP = true;
+                else if(periodo === 'custom') matchP = (!dInicio || logDate >= dInicio) && (!dFim || logDate <= dFim);
+
                 const matchM = (maquinaSel === 'todos' || maquinaSel === log.maquina);
-                if(matchP && matchM && stats[log.maquina] !== undefined) stats[log.maquina] += parseFloat(log.valor);
+                const matchO = (operSel === 'todos' || operSel === log.quem);
+
+                if(matchP && matchM && matchO && stats[log.maquina] !== undefined) {
+                    const valor = parseFloat(log.valor) || 0;
+                    stats[log.maquina] += valor;
+                    totalH += valor;
+                    if(stats[log.maquina] > topMaq.valor) topMaq = {nome: log.maquina, valor: stats[log.maquina]};
+                }
             });
+
+            document.getElementById('kpi-total').innerText = totalH.toFixed(1) + 'h';
+            document.getElementById('kpi-top').innerText = topMaq.nome;
+
             renderChart(stats);
         };
 
@@ -360,7 +418,23 @@
                     labels: Object.keys(stats), 
                     datasets:[{ data: Object.values(stats), borderColor:'#a855f7', backgroundColor: 'rgba(168, 85, 247, 0.1)', fill: true, tension: 0.4, borderWidth: 4, pointRadius: 4 }] 
                 }, 
-                options: { plugins:{legend:{display:false}}, scales: { y:{display:false}, x:{grid:{display:false}, ticks:{color:'#475569', font:{size:9}}} } } 
+                options: { 
+                    plugins:{
+                        legend:{display:false}
+                    }, 
+                    scales: { 
+                        y: {
+                            display: true, 
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' }, 
+                            ticks: { color: '#475569', font: { size: 10 } } 
+                        }, 
+                        x: {
+                            display: true, 
+                            grid: { display: false }, 
+                            ticks: { color: '#475569', font: { size: 10 } } 
+                        } 
+                    } 
+                } 
             });
             document.getElementById('stats-list').innerHTML = Object.entries(stats).map(([k,v])=>`
                 <div class="flex justify-between items-center bg-slate-900/50 p-4 rounded-2xl border border-slate-800">
@@ -400,10 +474,16 @@
             document.getElementById('sel-r-vinc').innerHTML = `<option value="">Selecionar Plano...</option>` + Object.values(window.tiposRev).map(r => `<option value="${r.id}">${r.nome} (${r.horas}h)</option>`).join('');
             document.getElementById('sel-o-lan').innerHTML = window.oper.map(o => `<option value="${o.nome}">${o.nome}</option>`).join('');
             
-            const selRel = document.getElementById('filtro-maquina-rel');
-            const valAntigo = selRel.value;
-            selRel.innerHTML = `<option value="todos">Todas as Máquinas</option>` + window.frota.map(t => `<option value="${t.modelo}">${t.modelo}</option>`).join('');
-            selRel.value = valAntigo || 'todos';
+            // Filtros Relatório
+            const selRelM = document.getElementById('filtro-maquina-rel');
+            const valM = selRelM.value;
+            selRelM.innerHTML = `<option value="todos">Todas Máquinas</option>` + window.frota.map(t => `<option value="${t.modelo}">${t.modelo}</option>`).join('');
+            selRelM.value = valM || 'todos';
+
+            const selRelO = document.getElementById('filtro-operador-rel');
+            const valO = selRelO.value;
+            selRelO.innerHTML = `<option value="todos">Todos Operadores</option>` + window.oper.map(o => `<option value="${o.nome}">${o.nome}</option>`).join('');
+            selRelO.value = valO || 'todos';
 
             // Logs
             const search = document.getElementById('filter-search').value.toLowerCase();
