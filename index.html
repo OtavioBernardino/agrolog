@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AgroLog Cloud - Sincronizado</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, set, onValue, push } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+
+
+
+        // CONFIGURAÇÃO DO SEU PROJETO (COLE AQUI O QUE VOCÊ COPIOU DO FIREBASE)
+
+        const firebaseConfig = {
+  	apiKey: "AIzaSyCy2_TVj_AXhu2HUlQBUuL3nUkYWGVzA0U",
+ 	authDomain: "agrolog-f89d7.firebaseapp.com",
+  	databaseURL: "https://agrolog-f89d7-default-rtdb.firebaseio.com",
+  	projectId: "agrolog-f89d7",
+  	storageBucket: "agrolog-f89d7.firebasestorage.app",
+  	messagingSenderId: "79965062136",
+  	appId: "1:79965062136:web:1361b2e7001ad850288c0d",
+  	measurementId: "G-2YKKE82KTD"
+	};
+  
+
+        // Inicializar Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // Referências do Banco
+        const frotaRef = ref(db, 'frota');
+        const operRef = ref(db, 'operadores');
+        const logsRef = ref(db, 'logs');
+        const revsRef = ref(db, 'revisoes');
+
+        // --- FUNÇÕES DE SINCRONIZAÇÃO EM TEMPO REAL ---
+        
+        // Carregar Frota
+        onValue(frotaRef, (snapshot) => {
+            const data = snapshot.val();
+            window.frota = data ? Object.values(data) : [];
+            window.frotaKeys = data ? Object.keys(data) : []; // Para updates
+            render();
+        });
+
+        // Carregar Operadores
+        onValue(operRef, (snapshot) => {
+            const data = snapshot.val();
+            window.oper = data ? Object.values(data) : [];
+            render();
+        });
+
+        // Carregar Logs (últimos 20)
+        onValue(logsRef, (snapshot) => {
+            const data = snapshot.val();
+            window.logs = data ? Object.values(data).reverse().slice(0, 20) : [];
+            render();
+        });
+
+        // Carregar Revisões
+        onValue(revsRef, (snapshot) => {
+            const data = snapshot.val();
+            window.revs = data ? Object.values(data).reverse() : [];
+            render();
+        });
+
+        // --- EXPORTO PARA O HTML ---
+        window.salvarTrator = (modelo, intervalo, horimetro) => {
+            const novoRef = push(frotaRef);
+            set(novoRef, { id: Date.now(), key: novoRef.key, modelo, intervalo, horimetro, ultimaRevisao: horimetro });
+        };
+
+        window.salvarOperador = (nome) => {
+            push(operRef, { id: Date.now(), nome });
+        };
+
+        window.registrarHoras = (tratorId, operadorNome, horas) => {
+            const tIndex = window.frota.findIndex(x => x.id == tratorId);
+            const t = window.frota[tIndex];
+            const tKey = window.frotaKeys[tIndex];
+
+            // Atualiza horímetro no trator
+            set(ref(db, `frota/${tKey}/horimetro`), horas);
+            
+            // Grava Log
+            push(logsRef, { data: new Date().toLocaleDateString(), maquina: t.modelo, quem: operadorNome, valor: horas });
+        };
+
+        window.confirmarRevisao = (tratorId) => {
+            const tIndex = window.frota.findIndex(x => x.id == tratorId);
+            const t = window.frota[tIndex];
+            const tKey = window.frotaKeys[tIndex];
+
+            push(revsRef, { data: new Date().toLocaleDateString(), maquina: t.modelo, valor: t.horimetro });
+            set(ref(db, `frota/${tKey}/ultimaRevisao`), t.horimetro);
+        };
+    </script>
+
+    <style>
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        #side-menu { transition: transform 0.3s; transform: translateX(-100%); }
+        #side-menu.open { transform: translateX(0); }
+        #overlay.open { display: block; }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 pb-20">
+
+    <div id="overlay" onclick="toggleMenu()" class="fixed inset-0 bg-black/60 z-[60] hidden"></div>
+
+    <div id="side-menu" class="fixed top-0 left-0 h-full w-72 bg-gray-800 z-[70] shadow-2xl p-6 border-r border-gray-700">
+        <h2 class="text-xl font-black text-yellow-400 italic mb-10">AGROLOG CLOUD</h2>
+        <nav class="space-y-2">
+            <button onclick="navTo('cad-trator')" class="w-full text-left p-4 hover:bg-gray-700 rounded-xl flex gap-4"><i class="fas fa-tractor text-green-500"></i> Frotas</button>
+            <button onclick="navTo('cad-oper')" class="w-full text-left p-4 hover:bg-gray-700 rounded-xl flex gap-4"><i class="fas fa-users text-blue-500"></i> Operadores</button>
+            <button onclick="navTo('log-rev')" class="w-full text-left p-4 hover:bg-gray-700 rounded-xl flex gap-4"><i class="fas fa-history text-yellow-500"></i> Revisões</button>
+        </nav>
+    </div>
+
+    <header class="bg-green-900 p-4 sticky top-0 z-50 flex justify-between items-center">
+        <button onclick="toggleMenu()" class="text-xl"><i class="fas fa-bars"></i></button>
+        <h1 class="font-black italic">AGRO<span class="text-yellow-400">LOG</span></h1>
+        <span class="text-[10px] bg-green-700 px-2 py-1 rounded">ONLINE</span>
+    </header>
+
+    <main class="p-4 max-w-2xl mx-auto">
+        <section id="dashboard" class="tab-content active space-y-4">
+            <div id="stats" class="grid grid-cols-2 gap-3"></div>
+            <div id="fleet-list" class="space-y-4"></div>
+        </section>
+
+        <section id="lancamento" class="tab-content">
+            <div class="bg-gray-800 p-6 rounded-2xl border border-gray-700">
+                <form id="form-horas" class="space-y-4">
+                    <select id="sel-t" class="w-full bg-gray-900 p-4 rounded-xl border border-gray-700 font-bold" required></select>
+                    <select id="sel-o" class="w-full bg-gray-900 p-4 rounded-xl border border-gray-700" required></select>
+                    <input type="number" step="0.1" id="h-atual" placeholder="Horímetro" class="w-full bg-gray-900 p-5 rounded-xl border-2 border-yellow-600 text-center text-4xl font-black text-yellow-500" required>
+                    <button class="w-full bg-yellow-600 text-gray-900 py-5 rounded-2xl font-black uppercase">Sincronizar Dados</button>
+                </form>
+            </div>
+        </section>
+
+        <section id="log-rev" class="tab-content">
+            <h2 class="font-bold mb-4">Histórico Global</h2>
+            <div id="timeline-rev" class="border-l-2 border-gray-700 ml-4 space-y-4"></div>
+        </section>
+
+        <section id="cad-trator" class="tab-content">
+            <div class="bg-gray-800 p-6 rounded-xl">
+                <input type="text" id="t-mod" placeholder="Modelo" class="w-full bg-gray-900 p-3 mb-2 rounded">
+                <input type="number" id="t-int" placeholder="Intervalo" class="w-full bg-gray-900 p-3 mb-2 rounded">
+                <input type="number" id="t-hor" placeholder="Horímetro Inicial" class="w-full bg-gray-900 p-3 mb-4 rounded">
+                <button onclick="window.salvarTrator(document.getElementById('t-mod').value, document.getElementById('t-int').value, document.getElementById('t-hor').value)" class="w-full bg-green-600 p-3 rounded font-bold">SALVAR NA NUVEM</button>
+            </div>
+        </section>
+
+        <section id="cad-oper" class="tab-content">
+            <div class="bg-gray-800 p-6 rounded-xl">
+                <input type="text" id="o-nome" placeholder="Nome do Operador" class="w-full bg-gray-900 p-3 mb-4 rounded">
+                <button onclick="window.salvarOperador(document.getElementById('o-nome').value)" class="w-full bg-blue-600 p-3 rounded font-bold">ADICIONAR</button>
+            </div>
+        </section>
+    </main>
+
+    <nav class="fixed bottom-0 left-0 right-0 bg-gray-800 border-t border-gray-700 flex justify-around p-1 z-40">
+        <button onclick="openTab('dashboard')" class="p-3"><i class="fas fa-th-large text-xl"></i></button>
+        <button onclick="openTab('lancamento')" class="p-3"><div class="bg-yellow-600 text-gray-900 -mt-8 w-12 h-12 rounded-full flex items-center justify-center border-4 border-gray-900 shadow-xl"><i class="fas fa-plus"></i></div></button>
+    </nav>
+
+    <script>
+        // Funções de UI
+        function toggleMenu() {
+            document.getElementById('side-menu').classList.toggle('open');
+            document.getElementById('overlay').classList.toggle('hidden');
+        }
+        function navTo(id) { toggleMenu(); openTab(id); }
+        function openTab(id) {
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+        }
+
+        document.getElementById('form-horas').onsubmit = (e) => {
+            e.preventDefault();
+            window.registrarHoras(document.getElementById('sel-t').value, document.getElementById('sel-o').value, document.getElementById('h-atual').value);
+            e.target.reset();
+            alert("Sincronizado com sucesso!");
+            openTab('dashboard');
+        };
+
+        function render() {
+            if(!window.frota) return;
+            
+            // Stats
+            document.getElementById('stats').innerHTML = `
+                <div class="bg-gray-800 p-3 rounded-xl border border-gray-700 text-center"><p class="text-[10px] uppercase">Frota</p><p class="text-xl font-bold">${window.frota.length}</p></div>
+                <div class="bg-gray-800 p-3 rounded-xl border border-gray-700 text-center"><p class="text-[10px] uppercase">Logs</p><p class="text-xl font-bold text-yellow-500">${window.logs.length}</p></div>
+            `;
+
+            // Lista Frota
+            document.getElementById('fleet-list').innerHTML = window.frota.map(t => {
+                const perc = Math.min(((t.horimetro - t.ultimaRevisao) / t.intervalo) * 100, 100);
+                return `
+                <div class="bg-gray-800 p-4 rounded-xl border border-gray-700">
+                    <div class="flex justify-between mb-2 text-sm"><b>${t.modelo}</b><span>${t.horimetro}h</span></div>
+                    <div class="w-full bg-gray-900 h-2 rounded-full overflow-hidden">
+                        <div class="h-full ${perc > 90 ? 'bg-red-500' : 'bg-green-500'}" style="width: ${perc}%"></div>
+                    </div>
+                    <button onclick="window.confirmarRevisao('${t.id}')" class="w-full mt-3 bg-blue-600/20 text-blue-400 py-1 rounded text-[10px] font-bold">REVISAR</button>
+                </div>`;
+            }).join('');
+
+            // Selects
+            document.getElementById('sel-t').innerHTML = window.frota.map(t => `<option value="${t.id}">${t.modelo}</option>`).join('');
+            document.getElementById('sel-o').innerHTML = window.oper.map(o => `<option value="${o.nome}">${o.nome}</option>`).join('');
+            
+            // Timeline
+            document.getElementById('timeline-rev').innerHTML = window.revs.map(r => `
+                <div class="relative pl-4 border-l-2 border-yellow-500 ml-2">
+                    <p class="text-sm font-bold text-yellow-500">${r.maquina}</p>
+                    <p class="text-[10px] text-gray-400">${r.data} • ${r.valor}h</p>
+                </div>
+            `).join('');
+        }
+    </script>
+</body>
+</html>
