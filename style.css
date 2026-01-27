@@ -41,3 +41,13 @@ input:focus, select:focus {
 .toast {
     transition: opacity 0.5s ease;
 }
+
+.borda {
+    margin-top: 0%;
+}
+
+@media (max-width: 600px) {
+    .borda {
+        margin-top: 8%;
+    }
+}
