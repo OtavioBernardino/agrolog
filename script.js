@@ -95,6 +95,46 @@ window.vincularRevisao = (tratorId, tipoId) => {
     }
 };
 
+window.marcarRevisaoPronta = (tratorId) => {
+    const tIdx = window.frota.findIndex(x => x.id == tratorId);
+    if(tIdx === -1) return window.showToast("Máquina não encontrada", "warning");
+    const tKey = window.frotaKeys[tIdx];
+    const horasAtuais = window.frota[tIdx].horimetro;
+    update(ref(db, `frota/${tKey}`), { ultimaRevisao: horasAtuais });
+    window.showToast("Revisão marcada como realizada!", "success");
+    window.render();
+    window.renderRevisoes();
+};
+
+window.confirmarRevisaoIndividual = (tratorId, tipoRevId) => {
+    const tIdx = window.frota.findIndex(x => x.id == tratorId);
+    if(tIdx === -1) return window.showToast("Máquina não encontrada", "warning");
+    
+    const tKey = window.frotaKeys[tIdx];
+    const horasAtuais = window.frota[tIdx].horimetro;
+    const tipoRev = window.tiposRev[tipoRevId];
+    
+    if(!tipoRev) return window.showToast("Tipo de revisão não encontrado", "warning");
+    
+    // Marca a revisão como realizada registrando no banco de dados
+    push(logsRef, { 
+        data: new Date().toLocaleDateString('pt-BR'),
+        hora: new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}),
+        maquina: window.frota[tIdx].modelo, 
+        quem: 'Sistema', 
+        valor: horasAtuais,
+        tipo: 'revisao',
+        plano: tipoRev.nome
+    });
+    
+    // Também atualiza o ultimaRevisao
+    update(ref(db, `frota/${tKey}`), { ultimaRevisao: horasAtuais });
+    
+    window.showToast(`Revisão "${tipoRev.nome}" confirmada!`, "success");
+    window.render();
+    window.renderRevisoes();
+};
+
 window.salvarTrator = (mod, hor) => {
     if(!mod || !hor) return window.showToast("Preencha todos os campos", "warning");
     const n = push(frotaRef);
@@ -192,15 +232,31 @@ window.render = () => {
     if(!window.frota || !window.tiposRev) return;
     document.getElementById('fleet-count').innerText = window.frota.length;
 
+    // Calcular prioridade de revisão para cada máquina
+    const frotaOrdenada = window.frota.map(t => {
+        let maxPrioridade = 0; // 0 = em dia, 1 = aviso laranja, 2 = aviso vermelho, 3 = em atraso
+        
+        (t.planos || []).forEach(pid => {
+            const r = window.tiposRev[pid];
+            if(!r) return;
+            const perc = Math.min(((t.horimetro % r.horas) / r.horas) * 100, 100);
+            if(perc >= 100) maxPrioridade = Math.max(maxPrioridade, 3); // Em atraso
+            else if(perc > 90) maxPrioridade = Math.max(maxPrioridade, 2); // Muito próximo
+            else if(perc > 75) maxPrioridade = Math.max(maxPrioridade, 1); // Próximo
+        });
+        
+        return { ...t, prioridade: maxPrioridade };
+    }).sort((a, b) => b.prioridade - a.prioridade); // Ordenar por prioridade decrescente
+
     // Fleet List
-    document.getElementById('fleet-list').innerHTML = window.frota.map(t => {
+    document.getElementById('fleet-list').innerHTML = frotaOrdenada.map(t => {
         let barras = (t.planos || []).map(pid => {
             const r = window.tiposRev[pid];
             if(!r) return "";
             const resta = r.horas - (t.horimetro % r.horas);
             const perc = Math.min(((t.horimetro % r.horas) / r.horas) * 100, 100);
             const color = perc > 90 ? 'bg-red-500' : perc > 75 ? 'bg-orange-500' : 'bg-emerald-500';
-            return `<div class="mt-4"><div class="flex justify-between text-[9px] mb-1"><span class="font-bold text-slate-400 uppercase">${r.nome}</span><span class="text-slate-500 font-bold">${resta.toFixed(1)}h restantes</span></div><div class="w-full bg-slate-950 h-2 rounded-full overflow-hidden"><div class="h-full ${color} transition-all duration-1000" style="width:${perc}%"></div></div></div>`;
+            return `<div class="mt-4"><div class="flex justify-between text-[9px] mb-1"><span class="font-bold text-slate-400 uppercase">${r.nome}</span><span class="text-slate-500 font-bold">${resta.toFixed(1)}h restantes</span></div><div class="w-full bg-slate-950 h-2 rounded-full overflow-hidden"><div class="h-full ${color} transition-all duration-1000" style="width:${perc}%"></div></div><button onclick="window.confirmarRevisaoIndividual('${t.id}', '${pid}')" class="w-full mt-2 bg-cyan-600 hover:bg-cyan-500 text-white py-1 px-2 rounded-lg font-bold uppercase text-[8px] transition-all active:scale-95"><i class="fas fa-check mr-1"></i>OK</button></div>`;
         }).join('');
 
         return `<div class="glass-card p-6 rounded-[2rem] relative overflow-hidden group">
@@ -216,6 +272,7 @@ window.render = () => {
     const optT = window.frota.map(t => `<option value="${t.id}">${t.modelo}</option>`).join('');
     document.getElementById('sel-t-vinc').innerHTML = `<option value="">Selecionar Máquina...</option>` + optT;
     document.getElementById('sel-t-lan').innerHTML = optT;
+    document.getElementById('sel-m-rev').innerHTML = optT;
     document.getElementById('sel-r-vinc').innerHTML = `<option value="">Selecionar Plano...</option>` + Object.values(window.tiposRev).map(r => `<option value="${r.id}">${r.nome} (${r.horas}h)</option>`).join('');
     document.getElementById('sel-o-lan').innerHTML = window.oper.map(o => `<option value="${o.nome}">${o.nome}</option>`).join('');
     
@@ -229,6 +286,10 @@ window.render = () => {
     const valO = selRelO.value;
     selRelO.innerHTML = `<option value="todos">Todos Operadores</option>` + window.oper.map(o => `<option value="${o.nome}">${o.nome}</option>`).join('');
     selRelO.value = valO || 'todos';
+
+    // Update revision filters
+    window.atualizarFiltrosRevisoes();
+    window.renderRevisoes();
 
     // Logs
     const search = document.getElementById('filter-search').value.toLowerCase();
@@ -247,6 +308,103 @@ window.render = () => {
                 <div class="text-right"><span class="text-[9px] block text-slate-500 font-bold uppercase tracking-widest">Operador</span><span class="text-xs italic text-slate-300">${l.quem}</span></div>
             </div>
         </div>`).join('') : '<div class="text-center py-20 opacity-20"><p class="text-[10px] font-bold uppercase">Nenhum registo</p></div>';
+};
+
+window.renderRevisoes = () => {
+    const maquinaSel = document.getElementById('filtro-rev-maquina').value;
+    const planoSel = document.getElementById('filtro-rev-plano').value;
+    const dInicio = document.getElementById('rev-data-inicio').value ? new Date(document.getElementById('rev-data-inicio').value) : null;
+    const dFim = document.getElementById('rev-data-fim').value ? new Date(document.getElementById('rev-data-fim').value) : null;
+    if(dFim) dFim.setHours(23,59,59);
+
+    const revisoes = {};
+    window.frota.forEach(trator => {
+        const planosIds = trator.planos || [];
+        planosIds.forEach(pid => {
+            const plano = window.tiposRev[pid];
+            if(!plano) return;
+            if(!revisoes[trator.modelo]) revisoes[trator.modelo] = {};
+            if(!revisoes[trator.modelo][plano.nome]) revisoes[trator.modelo][plano.nome] = [];
+            
+            const ultimaRevisao = trator.ultimaRevisao || 0;
+            const proxRevisao = ultimaRevisao + plano.horas;
+            const diasRestantes = Math.max(0, Math.ceil((proxRevisao - trator.horimetro) / 24));
+            
+            revisoes[trator.modelo][plano.nome].push({
+                ultimaRevisao: ultimaRevisao.toFixed(1),
+                proximaRevisao: proxRevisao.toFixed(1),
+                horasRestantes: Math.max(0, (proxRevisao - trator.horimetro)).toFixed(1),
+                diasRestantes: diasRestantes,
+                planoHoras: plano.horas,
+                maquinaHoras: trator.horimetro
+            });
+        });
+    });
+
+    let revisoesFiltradas = [];
+    Object.keys(revisoes).forEach(maquina => {
+        if(maquinaSel !== 'todas' && maquinaSel !== maquina) return;
+        
+        Object.keys(revisoes[maquina]).forEach(plano => {
+            if(planoSel !== 'todos' && planoSel !== plano) return;
+            
+            revisoes[maquina][plano].forEach(rev => {
+                revisoesFiltradas.push({maquina, plano, ...rev});
+            });
+        });
+    });
+
+    const container = document.getElementById('revisoes-list');
+    container.innerHTML = revisoesFiltradas.length > 0 ? revisoesFiltradas.map(rev => {
+        const emAtraso = parseFloat(rev.horasRestantes) <= 0;
+        const proximoVencimento = emAtraso ? 'text-red-500' : parseFloat(rev.horasRestantes) <= 50 ? 'text-orange-500' : 'text-emerald-500';
+        const icon = emAtraso ? '<i class="fas fa-exclamation-circle"></i>' : '<i class="fas fa-check-circle"></i>';
+        
+        return `
+        <div class="glass-card p-5 rounded-2xl flex flex-col gap-3 border-l-2 ${emAtraso ? 'border-red-500' : proximoVencimento.includes('orange') ? 'border-orange-500' : 'border-emerald-500'}">
+            <div class="flex justify-between items-start">
+                <div>
+                    <span class="text-[9px] text-slate-400 font-extrabold uppercase tracking-tighter">${rev.maquina}</span>
+                    <p class="text-sm font-bold text-cyan-400 uppercase">${rev.plano}</p>
+                </div>
+                <span class="${proximoVencimento} text-lg">${icon}</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2 bg-slate-950/30 p-3 rounded-xl">
+                <div>
+                    <span class="text-[8px] text-slate-500 font-bold uppercase">Última Revisão</span>
+                    <p class="text-xs font-black text-white">${rev.ultimaRevisao}h</p>
+                </div>
+                <div>
+                    <span class="text-[8px] text-slate-500 font-bold uppercase">Próxima em</span>
+                    <p class="text-xs font-black text-white">${rev.proximaRevisao}h</p>
+                </div>
+            </div>
+            <div class="flex justify-between items-center pt-2 border-t border-slate-800">
+                <div>
+                    <span class="text-[8px] text-slate-500 font-bold uppercase tracking-widest">Faltam</span>
+                    <p class="text-sm font-black ${proximoVencimento}">${rev.horasRestantes}h</p>
+                </div>
+                <div class="text-right">
+                    <span class="text-[8px] text-slate-500 font-bold uppercase tracking-widest">Horimetro</span>
+                    <p class="text-sm font-black text-yellow-500">${rev.maquinaHoras.toFixed(1)}h</p>
+                </div>
+            </div>
+        </div>`;
+    }).join('') : '<div class="text-center py-20 opacity-20"><p class="text-[10px] font-bold uppercase">Nenhuma revisão encontrada</p></div>';
+};
+
+window.atualizarFiltrosRevisoes = () => {
+    const selMaq = document.getElementById('filtro-rev-maquina');
+    const valMaq = selMaq.value;
+    selMaq.innerHTML = `<option value="todas">Todas Máquinas</option>` + window.frota.map(t => `<option value="${t.modelo}">${t.modelo}</option>`).join('');
+    selMaq.value = valMaq || 'todas';
+
+    const selPlan = document.getElementById('filtro-rev-plano');
+    const valPlan = selPlan.value;
+    const tiposUnicos = {};
+    Object.values(window.tiposRev || {}).forEach(t => { tiposUnicos[t.nome] = true; });
+    selPlan.innerHTML = `<option value="todos">Todos Planos</option>` + Object.keys(tiposUnicos).map(n => `<option value="${n}">${n}</option>`).join('');
+    selPlan.value = valPlan || 'todos';
 };
 
 // Event Listeners
