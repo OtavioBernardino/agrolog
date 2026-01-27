@@ -10,13 +10,13 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="pb-28">
-    <h1 style="margin-top: 8%;"></h1>
+    <h1 class="borda"></h1>
 
     <div id="toast-container" class="fixed top-24 left-1/2 -translate-x-1/2 z-[100] w-80 pointer-events-none space-y-2"></div>
     <div id="overlay" onclick="toggleMenu()" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] hidden"></div>
 
     <div id="side-menu" class="fixed top-0 left-0 h-full w-72 bg-slate-900 z-[70] shadow-2xl p-6 border-r border-slate-800">
-        <div class="flex items-center gap-3 mb-10 mt-20">
+        <div class="flex items-center gap-3 mt-10 mb-10">
             <div class="w-10 h-10 bg-yellow-500 rounded-xl flex items-center justify-center text-slate-950">
                 <i class="fas fa-leaf text-xl"></i>
             </div>
@@ -133,7 +133,7 @@
                 <form id="form-h" class="space-y-4">
                     <select id="sel-t-lan" class="w-full bg-slate-950 p-4 rounded-2xl border border-slate-800 font-bold text-yellow-500"></select>
                     <select id="sel-o-lan" class="w-full bg-slate-950 p-4 rounded-2xl border border-slate-800"></select>
-                    <div class="pt-4">
+                    <div class="pt-4 bg-slate-950 rounded-2xl border border-slate-800">
                         <input type="number" step="0.1" id="h-input" placeholder="0000.0" class="w-full bg-transparent p-4 text-center text-7xl font-black text-white outline-none placeholder:text-slate-900">
                         <p class="text-center text-[10px] text-slate-600 font-bold uppercase tracking-widest">Leitura do Horímetro</p>
                     </div>
