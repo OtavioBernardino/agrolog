@@ -1,0 +1,43 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800&display=swap');
+
+body { 
+    font-family: 'Plus Jakarta Sans', sans-serif; 
+    background-color: #020617; 
+    color: #e2e8f0; 
+}
+
+.tab-content { display: none; animation: fadeIn 0.4s ease-out; }
+.tab-content.active { display: block; }
+
+@keyframes fadeIn { 
+    from { opacity: 0; transform: translateY(10px); } 
+    to { opacity: 1; transform: translateY(0); } 
+}
+
+#side-menu { 
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); 
+    transform: translateX(-100%); 
+}
+
+#side-menu.open { transform: translateX(0); }
+
+.glass-card {
+    background: rgba(30, 41, 59, 0.5);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.nav-btn.active { color: #fbbf24; }
+
+input, select { transition: all 0.2s ease; }
+input:focus, select:focus { 
+    border-color: #fbbf24 !important; 
+    box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.1); 
+}
+
+@media print { .no-print { display: none !important; } }
+
+/* Toast styles */
+.toast {
+    transition: opacity 0.5s ease;
+}
