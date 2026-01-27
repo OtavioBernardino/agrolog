@@ -27,6 +27,7 @@
             <button onclick="navTo('relatorios')" class="w-full text-left p-4 hover:bg-slate-800 rounded-2xl flex gap-4 transition-all items-center text-purple-400"><i class="fas fa-chart-pie opacity-50"></i> Relatórios</button>
             <button onclick="navTo('config-rev')" class="w-full text-left p-4 hover:bg-slate-800 rounded-2xl flex gap-4 transition-all items-center text-orange-400"><i class="fas fa-screwdriver-wrench opacity-50"></i> Manutenção</button>
             <button onclick="navTo('cad-trator')" class="w-full text-left p-4 hover:bg-slate-800 rounded-2xl flex gap-4 transition-all items-center text-emerald-400"><i class="fas fa-truck-moving opacity-50"></i> Frota & Equipa</button>
+            <button onclick="navTo('relatorio-revisoes')" class="w-full text-left p-4 hover:bg-slate-800 rounded-2xl flex gap-4 transition-all items-center text-yellow-400"><i class="fas fa-clipboard-list opacity-50"></i> Rel. Man</button>
         </nav>
     </div>
 
@@ -156,6 +157,34 @@
             <div id="logs-list" class="space-y-3"></div>
         </section>
 
+        <section id="relatorio-revisoes" class="tab-content space-y-4">
+            <div class="glass-card p-6 rounded-3xl space-y-4 border-l-4 border-cyan-500">
+                <div class="flex justify-between items-start">
+                    <h2 class="text-cyan-400 font-extrabold text-lg italic uppercase tracking-tighter">Histórico Revisões</h2>
+                    <button onclick="window.print()" class="w-10 h-10 bg-slate-800 rounded-xl flex items-center justify-center hover:bg-cyan-600 transition-all"><i class="fas fa-file-pdf"></i></button>
+                </div>
+                <div class="space-y-3">
+                    <select id="filtro-rev-maquina" onchange="window.renderRevisoes()" class="w-full bg-slate-950 p-3 rounded-2xl border border-slate-800 text-[10px] font-bold text-slate-400 outline-none">
+                        <option value="todas">Todas Máquinas</option>
+                    </select>
+                    <select id="filtro-rev-plano" onchange="window.renderRevisoes()" class="w-full bg-slate-950 p-3 rounded-2xl border border-slate-800 text-[10px] font-bold text-slate-400 outline-none">
+                        <option value="todos">Todos Planos</option>
+                    </select>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="flex flex-col">
+                            <label class="text-[8px] font-bold text-slate-600 ml-2 mb-1">DE:</label>
+                            <input type="date" id="rev-data-inicio" onchange="window.renderRevisoes()" class="bg-slate-950 p-2 rounded-xl border border-slate-800 text-[10px] text-white outline-none">
+                        </div>
+                        <div class="flex flex-col">
+                            <label class="text-[8px] font-bold text-slate-600 ml-2 mb-1">ATÉ:</label>
+                            <input type="date" id="rev-data-fim" onchange="window.renderRevisoes()" class="bg-slate-950 p-2 rounded-xl border border-slate-800 text-[10px] text-white outline-none">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="revisoes-list" class="space-y-3"></div>
+        </section>
+
         <section id="cad-trator" class="tab-content space-y-6">
             <div class="glass-card p-6 rounded-3xl">
                 <h2 class="text-emerald-400 font-bold mb-4 uppercase text-sm">Adicionar Máquina</h2>
@@ -170,6 +199,13 @@
                 <div class="flex gap-2">
                     <input type="text" id="o-nome-new" placeholder="Nome" class="flex-1 bg-slate-950 p-4 rounded-2xl border border-slate-800">
                     <button onclick="window.salvarOperador(document.getElementById('o-nome-new').value)" class="bg-blue-600 px-6 rounded-2xl transition-all"><i class="fas fa-user-plus"></i></button>
+                </div>
+            </div>
+            <div class="glass-card p-6 rounded-3xl border-l-4 border-cyan-500">
+                <h2 class="text-cyan-400 font-bold mb-4 uppercase text-sm">Revisar Máquina</h2>
+                <div class="space-y-3">
+                    <select id="sel-m-rev" class="w-full bg-slate-950 p-4 rounded-2xl border border-slate-800 text-sm text-slate-300 outline-none"></select>
+                    <button onclick="window.marcarRevisaoPronta(document.getElementById('sel-m-rev').value)" class="w-full bg-cyan-600 text-white py-4 rounded-2xl font-black uppercase text-xs hover:bg-cyan-700 transition-all">Marcar Revisão Realizada</button>
                 </div>
             </div>
         </section>
@@ -196,6 +232,10 @@
         <button onclick="openTab('cad-trator')" class="nav-btn flex flex-col items-center gap-1 text-slate-500 w-12" id="btn-tab-cad-trator">
             <i class="fas fa-cog text-xl"></i>
             <span class="text-[8px] font-bold uppercase">Config</span>
+        </button>
+        <button onclick="openTab('relatorio-revisoes')" class="nav-btn flex flex-col items-center gap-1 text-slate-500 w-12" id="btn-tab-relatorio-revisoes">
+            <i class="fas fa-clipboard-check text-xl"></i>
+            <span class="text-[8px] font-bold uppercase">Rev</span>
         </button>
     </nav>
 
